@@ -1,0 +1,132 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Resources:
+  # Role
+  GetCartsLambdaRole: 
+    Type: "AWS::IAM::Role"
+    Properties: 
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - 
+            Effect: "Allow"
+            Principal: 
+              Service: "lambda.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+  GetCartsLambdaPolicies:
+    DependsOn:
+      - CartsTable
+    Type: "AWS::IAM::Policy"
+    Properties:
+      PolicyName: !Join ["-", [!Ref App, !Ref Stage, "CartsServiceAccessPolicy"]]
+      PolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          -
+            Effect: "Allow"
+            Action:
+              - "logs:CreateLogGroup"
+              - "logs:CreateLogStream"
+              - "logs:PutLogEvents"
+            Resource: "arn:aws:logs:*:*:*"
+          -
+            Effect: "Allow"
+            Action:
+              - "dynamodb:GetItem"
+            Resource:
+              - !GetAtt CartsTable.Arn
+      Roles:
+        - !Ref GetCartsLambdaRole
+        
+  # Lambda
+  GetCartsFunction:
+    Type: AWS::Lambda::Function
+    DependsOn:
+      - CartsServiceApi
+    Properties:
+      FunctionName: !Join ["-", [!Ref App, !Ref Stage, "getCarts"]]
+      Description: Get user carts
+      Handler: index.handler
+      Code: ./functions/getCarts/
+      Runtime: nodejs6.10
+      Role: !GetAtt GetCartsLambdaRole.Arn
+      Environment:
+        Variables: 
+          CartsTable: !Ref CartsTable
+          AllowOrigin: !Ref AllowOrigin
+  GetCartsFunctionPermission:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      Action: "lambda:InvokeFunction"
+      FunctionName: !Ref GetCartsFunction
+      Principal: "apigateway.amazonaws.com"
+      SourceArn: !Join ["", ["arn:aws:execute-api:", !Ref "AWS::Region", ":", !Ref "AWS::AccountId", ":*/*/GET/carts"]]
+  
+  # Tables
+  CartsTable:
+    Type: AWS::DynamoDB::Table
+    Properties: 
+      TableName: !Join ["-", [!Ref App, !Ref Stage, "Carts"]]
+      AttributeDefinitions: 
+        - AttributeName: mobile 
+          AttributeType: S
+      KeySchema: 
+        - AttributeName: mobile
+          KeyType: HASH
+      ProvisionedThroughput: 
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+
+  # ApiGateway
+  CartsServiceApi:
+    Type: "AWS::ApiGateway::RestApi"
+    Properties:
+      Name: !Join ["-", [!Ref App, !Ref Stage, "carts"]]
+  CartsApiDeployment:
+    Type: "AWS::ApiGateway::Deployment"
+    DependsOn:
+      - CartsGetMethod
+    Properties:
+      RestApiId: !Ref CartsServiceApi
+      StageName: !Ref Stage
+  CartsResource:
+    Type: "AWS::ApiGateway::Resource"
+    Properties:
+      ParentId: !GetAtt CartsServiceApi.RootResourceId
+      PathPart: "carts"
+      RestApiId: !Ref CartsServiceApi
+  CartsGetMethod:
+    Type: "AWS::ApiGateway::Method"
+    Properties:
+      HttpMethod: "GET"
+      AuthorizationType: "NONE"
+      ResourceId: !Ref CartsResource
+      RestApiId: !Ref CartsServiceApi
+      Integration:
+        IntegrationHttpMethod: "POST"
+        Type: "AWS_PROXY"
+        Uri: !Join ["", ["arn:aws:apigateway:", !Ref "AWS::Region", ":lambda:path/2015-03-31/functions/", !GetAtt GetCartsFunction.Arn, "/invocations"]]
+        IntegrationResponses:
+          - StatusCode: 200
+
+# Misc
+Parameters:
+  App:
+    Type: "String"
+  Stage:
+    Type: "String"
+  Region:
+    Type: "String"
+  AllowOrigin:
+    Type: "String"
+# Outputs
+Outputs:
+  CartsTableArn:
+    Value: !GetAtt CartsTable.Arn
+  GetCartsFunctionArn:
+    Value: !GetAtt GetCartsFunction.Arn
+  ApiUrl:
+    Value: !Join ["", ["https://", !Ref CartsServiceApi, ".execute-api.", !Ref "AWS::Region", ".amazonaws.com/", !Ref Stage, "/carts"]]
+

@@ -1,0 +1,41 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Resources:
+  # User stack
+  Users:
+    Type: "AWS::CloudFormation::Stack"
+    Properties:
+      Parameters:
+        App: !Ref App
+        Stage: !Ref Stage
+        Region: !Ref Region
+        AllowOrigin: !Ref AllowOrigin
+      TemplateURL: users/cloudformation.yml
+  # Cart stack
+  Carts:
+    Type: "AWS::CloudFormation::Stack"
+    Properties:
+      Parameters:
+        App: !Ref App
+        Stage: !Ref Stage
+        Region: !Ref Region
+        AllowOrigin: !Ref AllowOrigin
+      TemplateURL: carts/cloudformation.yml
+
+# Misc
+Parameters:
+  App:
+    Type: "String"
+  Stage:
+    Type: "String"
+  Region:
+    Type: "String"
+  AllowOrigin:
+    Type: "String"
+# Outputs
+Outputs:
+  Users:
+    Value: !GetAtt Users.Outputs.ApiUrl
+  Carts:
+    Value: !GetAtt Carts.Outputs.ApiUrl
+
