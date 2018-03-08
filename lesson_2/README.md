@@ -1,4 +1,4 @@
-# Develop serverless application using tranditional software engineering tools/method
+# Develop serverless application using AWS Cli
 
 ## Problem in Lesson 1
 We need a practical way to able to develop serverless application in a "common sense" way of engineering, for example, develop, contributing, testing, deploy. Not directly on AWS console.
